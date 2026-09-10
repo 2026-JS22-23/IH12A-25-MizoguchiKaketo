@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="ja" class="[color-scheme:light]">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Map</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        ink: "#243044",
+                        muted: "#677181",
+                        teal: "#287c78",
+                        gold: "#e5ad32"
+                    },
+                    fontFamily: {
+                        sans: ['"Hiragino Sans"', '"Yu Gothic"', '"Meiryo"', "system-ui", "sans-serif"]
+                    },
+                    boxShadow: {
+                        memory: "0 18px 48px rgba(36, 48, 68, 0.16)",
+                        activeMemory: "0 22px 58px rgba(74, 63, 48, 0.3)"
+                    },
+                    backgroundImage: {
+                        mapFallback: "linear-gradient(135deg, rgba(36, 48, 68, 0.9), rgba(40, 124, 120, 0.78)), url('https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=1100&q=80')"
+                    }
+                }
+            }
+        };
+    </script>
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+    <style>
+        .memory-card {
+            transition: opacity 600ms ease, filter 600ms ease, transform 450ms ease, box-shadow 300ms ease;
+        }
+
+        .memory-card.is-entering {
+            opacity: 0;
+            filter: grayscale(1) blur(5px);
+            transform: rotate(var(--rotate)) translateY(18px) scale(0.97);
+        }
+
+        .memory-card.is-selected {
+            transform: rotate(0deg) translateY(-7px) scale(1.025);
+        }
+
+        .memory-card.is-opening {
+            transform: rotate(0deg) translateY(-16px) scale(1.12);
+            box-shadow: 0 30px 70px rgba(36, 48, 68, 0.3);
+        }
+
+        #photoStage.has-selection .memory-card:not(.is-selected) {
+            opacity: 0.55;
+            filter: saturate(0.65);
+        }
+
+        .memory-caption-meta {
+            opacity: 0;
+            transform: translateY(7px);
+            transition: opacity 280ms ease, transform 280ms ease;
+        }
+
+        .memory-card:hover .memory-caption-meta,
+        .memory-card:focus-visible .memory-caption-meta,
+        .memory-card.is-caption-visible .memory-caption-meta {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* jQuery UIのタブを、背景と細い罫線だけの静かな見た目に整えます。 */
+        .memory-tabs.ui-widget {
+            border: 0;
+            background: transparent;
+            color: inherit;
+            font-family: inherit;
+        }
+
+        .memory-tabs .ui-tabs-nav {
+            display: flex;
+            gap: 30px;
+            margin: 0;
+            padding: 0;
+            border: 0;
+            border-bottom: 1px solid rgba(36, 48, 68, 0.18);
+            border-radius: 0;
+            background: transparent;
+        }
+
+        .memory-tabs .ui-tabs-nav li {
+            top: 0;
+            margin: 0 0 -1px;
+            padding: 0;
+            border: 0;
+            border-bottom: 1px solid transparent;
+            border-radius: 0;
+            background: transparent;
+        }
+
+        .memory-tabs .ui-tabs-nav li.ui-tabs-active {
+            margin-bottom: -1px;
+            padding-bottom: 0;
+            border-bottom-color: #243044;
+        }
+
+        .memory-tabs .ui-tabs-nav .ui-tabs-anchor {
+            padding: 0 0 13px;
+            color: #79808a;
+            font-size: 0.76rem;
+            font-weight: 800;
+            letter-spacing: 0.2em;
+        }
+
+        .memory-tabs .ui-tabs-nav li.ui-tabs-active .ui-tabs-anchor,
+        .memory-tabs .ui-tabs-nav .ui-tabs-anchor:hover,
+        .memory-tabs .ui-tabs-nav .ui-tabs-anchor:focus {
+            color: #243044;
+            outline: none;
+        }
+
+        .memory-tabs .ui-tabs-nav .ui-tabs-anchor:focus-visible {
+            border-radius: 2px;
+            box-shadow: 0 0 0 3px rgba(40, 124, 120, 0.2);
+        }
+
+        .memory-tabs .ui-tabs-panel {
+            padding: 22px 0 0;
+        }
+
+        #detailTabs:not(.ui-tabs) #mapPanel {
+            display: none;
+        }
+
+        /* PC表示では画面の高さにも合わせて写真を縮め、初期表示内に5枚を収めます。 */
+        @media (min-width: 901px) {
+            body .page-header {
+                min-height: min(24svh, 200px);
+            }
+
+            #photoStage {
+                min-height: min(640px, calc(100svh - 300px));
+            }
+
+            #photoStage > .memory-card {
+                width: clamp(110px, min(19vw, 24svh), 250px);
+            }
+        }
+
+        @media (hover: none) {
+            .memory-caption-meta {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 900px) {
+            .memory-card.is-entering {
+                transform: translateY(18px) scale(0.97);
+            }
+
+            .memory-card.is-selected {
+                transform: translateY(-4px) scale(1.015);
+            }
+
+            .memory-card.is-opening {
+                transform: translateY(-6px) scale(1.04);
+            }
+
+            .memory-caption-meta {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .memory-card {
+                transition: none;
+            }
+
+            .memory-caption-meta {
+                transition: none;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen overflow-x-hidden font-sans text-ink [background:linear-gradient(135deg,rgba(40,124,120,0.12),transparent_32%),linear-gradient(315deg,rgba(238,127,102,0.14),transparent_34%),#fffaf1]">
+    <div class="mx-auto w-[calc(100%_-_32px)] max-w-[1180px] py-9 pb-12 max-[620px]:w-[calc(100%_-_22px)] max-[620px]:pt-[22px]">
+        <header class="page-header flex min-h-[28vh] items-end">
+            <div class="max-w-[820px]">
+                <p class="mb-3 text-[0.82rem] font-extrabold uppercase tracking-[0.12em] text-teal">IH12A-25  溝口翔斗</p>
+                <h1 class="mb-4 max-w-[760px] text-[clamp(2.45rem,6vw,5.75rem)] font-normal leading-[0.98] tracking-normal">Memory Map</h1>
+                <p class="mb-0 max-w-[650px] text-[1.02rem] leading-[1.9] text-muted">写真を選んで、思い出の場所を見よう！</p>
+            </div>
+        </header>
+
+        <main>
+            <section class="relative mt-7 min-h-[640px] border-t border-[rgba(36,48,68,0.14)] max-[900px]:grid max-[900px]:min-h-0 max-[900px]:grid-cols-2 max-[900px]:gap-4 max-[900px]:pt-6 max-[620px]:grid-cols-1" id="photoStage" aria-label="思い出の写真一覧"></section>
+
+            <section class="mt-3 hidden grid grid-cols-[minmax(260px,0.8fr)_minmax(320px,1fr)] items-stretch gap-8 border-t border-[rgba(36,48,68,0.14)] pt-[34px] max-[900px]:grid-cols-1" id="detailSection" aria-live="polite">
+                <div class="min-h-[480px] overflow-hidden rounded-lg bg-[#d6d9d3] shadow-memory max-[620px]:min-h-[320px]">
+                    <img class="block h-full min-h-[480px] w-full object-cover max-[620px]:min-h-[320px]" id="detailImage" src="" alt="">
+                </div>
+                <div class="memory-tabs min-w-0" id="detailTabs">
+                    <ul aria-label="思い出の詳細表示">
+                        <li><a href="#storyPanel">STORY</a></li>
+                        <li><a href="#mapPanel">MAP</a></li>
+                    </ul>
+
+                    <div id="storyPanel">
+                        <article class="min-h-[458px] rounded-lg border border-[rgba(36,48,68,0.14)] bg-white/70 p-[clamp(22px,3vw,34px)] shadow-[0_12px_36px_rgba(36,48,68,0.07)]">
+                            <p class="mb-5 text-[0.7rem] font-extrabold uppercase tracking-[0.2em] text-muted">Memory</p>
+                            <span class="mb-4 inline-flex w-fit items-center rounded-full bg-teal px-[11px] py-[7px] text-[0.78rem] font-extrabold text-white" id="detailPlaceLabel"></span>
+                            <h3 class="mb-4 text-[clamp(1.25rem,2vw,1.8rem)] font-normal leading-[1.25] tracking-normal" id="detailTitle"></h3>
+                            <p class="mb-7 leading-[1.95] text-[#495365]" id="detailText"></p>
+                            <dl class="m-0 grid grid-cols-2 gap-3 max-[620px]:grid-cols-1">
+                                <div class="border-t border-[rgba(36,48,68,0.18)] pt-3.5">
+                                    <dt class="text-[0.68rem] font-extrabold uppercase tracking-[0.14em] text-muted">Place</dt>
+                                    <dd class="mt-2 font-extrabold leading-[1.55]" id="detailPlace"></dd>
+                                </div>
+                                <div class="border-t border-[rgba(36,48,68,0.18)] pt-3.5">
+                                    <dt class="text-[0.68rem] font-extrabold uppercase tracking-[0.14em] text-muted">Date</dt>
+                                    <dd class="mt-2 font-extrabold leading-[1.55]" id="detailDate"></dd>
+                                </div>
+                            </dl>
+                        </article>
+                    </div>
+
+                    <div id="mapPanel">
+                        <div class="relative min-h-[458px] overflow-hidden rounded-lg border border-[rgba(36,48,68,0.14)] bg-[#dfe5e0] shadow-[0_12px_36px_rgba(36,48,68,0.1)]">
+                            <div class="absolute inset-0" id="map"></div>
+                            <button class="absolute left-3 top-3 z-10 rounded-full border border-white/80 bg-white/90 px-4 py-2 text-xs font-extrabold tracking-[0.08em] text-ink shadow-md transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal" id="showAllButton" type="button">すべての場所を見る</button>
+                            <div class="absolute inset-0 grid place-items-center bg-mapFallback bg-cover bg-center p-6 text-center text-white" id="mapFallback">
+                                <p class="m-0 w-[min(440px,100%)] rounded-lg bg-black/[0.34] p-[18px] leading-[1.8]">地図を読み込んでいます。</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="mt-9 text-center text-[0.82rem] text-muted">Memory Map / JS22</footer>
+    </div>
+
+    <script>
+        // 思い出のデータ
+        const memories = [
+            {
+                id: "memory-1",
+                title: "免許合宿の休みに食べた浜松餃子",
+                placeName: "五味八珍 浜岡店（静岡県御前崎市池新田7606）",
+                date: "2025年2月18日",
+                lat: 34.63455833333333,
+                lng: 138.1337583333333,
+                photo: "gyouza.jpeg",
+                alt: "五味八珍で食べた浜松餃子とラーメンの写真",
+                captionDate: "2025.02.18",
+                captionPlace: "OMAEZAKI",
+                memory: "小学校からの友達と免許合宿に行った時、休みの日に一人で五味八珍へ行きました。浜松餃子とラーメンめっちゃ美味しかったです！！",
+                color: "#287c78",
+                position: { top: "8%", left: "3%", rotate: "-7deg" }
+            },
+            {
+                id: "memory-2",
+                title: "卒業旅行で歩いた太宰府の山道",
+                placeName: "お石トンネル周辺（福岡県太宰府市宰府4丁目）",
+                date: "2025年3月13日",
+                lat: 33.52200280694187,
+                lng: 130.53627779891536,
+                photo: "hakata.jpeg",
+                alt: "高校の友達と太宰府のお石トンネル周辺を歩いた時の写真",
+                captionDate: "2025.03.13",
+                captionPlace: "DAZAIFU",
+                memory: "高校の友達との卒業旅行で福岡へ行って、太宰府天満宮の奥にあるお石トンネル周辺を歩きました！！",
+                color: "#ee7f66",
+                position: { top: "26%", left: "31%", rotate: "5deg" }
+            },
+            {
+                id: "memory-3",
+                title: "家族で行ったカリブ海クルーズ",
+                placeName: "Perfect Day at CocoCay（バハマ）",
+                date: "2019年 夏",
+                lat: 25.817137930157312,
+                lng: -77.94083699367937,
+                photo: "kuru-zu.jpeg",
+                alt: "家族で行ったクルーズ旅行の写真",
+                captionDate: "2019 SUMMER",
+                captionPlace: "COCOCAY / BAHAMAS",
+                memory: "小学生の頃、家族でアメリカまで飛行機で行き、豪華客船に乗りました！！写真は寄港地のココケイで撮ってもらった写真で、Dの中にいるのが俺です。",
+                color: "#4f75d8",
+                position: { top: "11%", left: "62%", rotate: "-3deg" }
+            },
+            {
+                id: "memory-4",
+                title: "初めて行ったミセスのライブ",
+                placeName: "京セラドーム大阪（大阪府大阪市西区千代崎3丁目中2番1号）",
+                date: "2025年11月15日",
+                lat: 34.66933333333333,
+                lng: 135.4761366666667,
+                photo: "live.jpeg",
+                alt: "ミセスのライブの写真",
+                captionDate: "2025.11.15",
+                captionPlace: "OSAKA",
+                memory: "小学生の頃から好きだったMrs. GREEN APPLEのライブに初めて行きました！！ずっと聴きたかった一番好きな曲を生で聴けて、普通に泣いた。",
+                color: "#e5ad32",
+                position: { top: "51%", left: "13%", rotate: "6deg" }
+            },
+            {
+                id: "memory-5",
+                title: "家族で通う神戸のぎょうざ大学",
+                placeName: "ぎょうざ大学 元町店（兵庫県神戸市中央区元町通2丁目3-5）",
+                date: "2023年3月30日",
+                lat: 34.68808,
+                lng: 135.187255,
+                photo: "daigaku.jpeg",
+                alt: "神戸のぎょうざ大学で食べた餃子の写真",
+                captionDate: "2023.03.30",
+                captionPlace: "KOBE",
+                memory: "家族で神戸へ行くと、絶対行く店です。ここの餃子マジで美味しい！！（なんか画像荒くね？）",
+                color: "#8e5fd5",
+                position: { top: "44%", left: "73%", rotate: "-6deg" }
+            }
+        ];
+
+        const photoStage = document.getElementById("photoStage");
+        const detailSection = document.getElementById("detailSection");
+        const detailImage = document.getElementById("detailImage");
+        const detailPlaceLabel = document.getElementById("detailPlaceLabel");
+        const detailTitle = document.getElementById("detailTitle");
+        const detailText = document.getElementById("detailText");
+        const detailPlace = document.getElementById("detailPlace");
+        const detailDate = document.getElementById("detailDate");
+        const mapFallback = document.getElementById("mapFallback");
+        const mapElement = document.getElementById("map");
+        const showAllButton = document.getElementById("showAllButton");
+
+        let googleMap = null;
+        let infoWindow = null;
+        let mapBounds = null;
+        let mapsApiReady = false;
+        let currentMemory = null;
+        let detailTabsReady = false;
+        let detailOpenTimer = null;
+        const markerStore = new Map();
+        const activeMemoryClass = "shadow-activeMemory";
+
+        // 写真カードを作る
+        function renderPhotos() {
+            const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+            memories.forEach((memory, index) => {
+                const card = document.createElement("button");
+                card.type = "button";
+                card.className = "memory-card group absolute left-[var(--left)] top-[var(--top)] isolate aspect-[4/5] w-[clamp(150px,19vw,250px)] rotate-[var(--rotate)] overflow-hidden rounded-lg border-0 bg-[#d7dedb] p-0 text-left text-white shadow-memory focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-[5px] focus-visible:outline-[rgba(79,117,216,0.72)] max-[900px]:relative max-[900px]:left-auto max-[900px]:top-auto max-[900px]:min-h-[220px] max-[900px]:w-full max-[900px]:rotate-0";
+                if (!reduceMotion) card.classList.add("is-entering");
+                card.style.setProperty("--top", memory.position.top);
+                card.style.setProperty("--left", memory.position.left);
+                card.style.setProperty("--rotate", memory.position.rotate);
+                const baseLayer = memories.length - index;
+                card.style.zIndex = baseLayer;
+                card.setAttribute("aria-label", `${memory.title}、${memory.date}、${memory.placeName}を表示`);
+
+                const image = document.createElement("img");
+                image.src = memory.photo;
+                image.alt = memory.alt;
+                image.className = "block h-full w-full object-cover transition-transform duration-[450ms] ease-in-out group-hover:scale-[1.07] group-focus-visible:scale-[1.07]";
+
+                const overlay = document.createElement("div");
+                overlay.className = "absolute inset-0 z-[1] bg-gradient-to-b from-transparent from-[34%] via-black/[0.04] to-[rgba(20,25,34,0.78)]";
+
+                const caption = document.createElement("span");
+                caption.className = "absolute inset-x-0 bottom-0 z-[2] block p-[clamp(12px,1.4vw,18px)] text-left";
+
+                const captionMeta = document.createElement("span");
+                captionMeta.className = "memory-caption-meta mb-2 flex items-center gap-2 text-[clamp(0.56rem,0.72vw,0.67rem)] font-extrabold uppercase leading-[1.35] tracking-[0.13em] text-white/85 [text-shadow:0_2px_10px_rgba(0,0,0,0.32)]";
+
+                const captionNumber = document.createElement("span");
+                captionNumber.textContent = String(index + 1).padStart(2, "0");
+
+                const captionRule = document.createElement("span");
+                captionRule.className = "h-px w-4 shrink-0 bg-white/60";
+
+                const captionDetails = document.createElement("span");
+                captionDetails.textContent = `${memory.captionDate} / ${memory.captionPlace}`;
+
+                captionMeta.append(captionNumber, captionRule, captionDetails);
+
+                const label = document.createElement("span");
+                label.textContent = memory.title;
+                label.className = "block text-[clamp(0.76rem,1.05vw,0.92rem)] font-extrabold leading-[1.45] [text-shadow:0_2px_12px_rgba(0,0,0,0.34)]";
+
+                caption.append(captionMeta, label);
+
+                card.append(image, overlay, caption);
+                card.addEventListener("click", () => selectMemory(memory.id, true));
+
+                $(card)
+                    .on("mouseenter focusin", function() {
+                        $(this).addClass("is-caption-visible");
+                        this.style.zIndex = 20;
+                    })
+                    .on("mouseleave focusout", function() {
+                        $(this).removeClass("is-caption-visible");
+                        this.style.zIndex = baseLayer;
+                    });
+                photoStage.appendChild(card);
+
+                memory.cardElement = card;
+                memory.listNumber = index + 1;
+                memory.baseLayer = baseLayer;
+            });
+
+            if (!reduceMotion) {
+                $(".memory-card").each(function(index) {
+                    const card = this;
+                    setTimeout(function() {
+                        $(card).removeClass("is-entering");
+                    }, 140 + index * 120);
+                });
+            }
+        }
+
+        function selectMemory(memoryId, shouldScroll) {
+            const memory = memories.find((item) => item.id === memoryId);
+            if (!memory) return;
+
+            clearTimeout(detailOpenTimer);
+            detailOpenTimer = null;
+            $(".memory-card").removeClass("is-opening");
+
+            currentMemory = memory;
+
+            if (shouldScroll && infoWindow) {
+                infoWindow.close();
+            }
+
+            memories.forEach((item) => {
+                item.cardElement.classList.toggle(activeMemoryClass, item.id === memoryId);
+                item.cardElement.classList.toggle("is-selected", item.id === memoryId);
+                item.cardElement.style.zIndex = item.baseLayer;
+            });
+            photoStage.classList.add("has-selection");
+
+            detailImage.src = memory.photo;
+            detailImage.alt = memory.alt;
+            detailPlaceLabel.textContent = memory.placeName;
+            detailTitle.textContent = memory.title;
+            detailText.textContent = memory.memory;
+            detailPlace.textContent = memory.placeName;
+            detailDate.textContent = memory.date;
+            detailSection.classList.remove("hidden");
+
+            if (detailTabsReady) {
+                if (shouldScroll) {
+                    $("#detailTabs").tabs("option", "active", 0);
+                } else if ($("#detailTabs").tabs("option", "active") === 1) {
+                    requestAnimationFrame(() => setupMap(memory));
+                }
+            } else {
+                setupMap(memory);
+            }
+
+            const detailPanel = $("#detailSection").stop(true, true).css("opacity", 0);
+
+            if (!shouldScroll) {
+                detailPanel.animate({ opacity: 1 }, 320);
+                return;
+            }
+
+            const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+            memory.cardElement.classList.add("is-opening");
+            memory.cardElement.style.zIndex = 30;
+
+            detailOpenTimer = setTimeout(function() {
+                memory.cardElement.classList.remove("is-opening");
+                memory.cardElement.style.zIndex = memory.baseLayer;
+                detailPanel.animate({ opacity: 1 }, 380);
+                detailSection.scrollIntoView({ behavior: "smooth", block: "start" });
+                detailOpenTimer = null;
+            }, reduceMotion ? 0 : 520);
+        }
+
+        function initializeDetailTabs() {
+            if (!window.jQuery || !$.fn.tabs) return;
+
+            $("#detailTabs").tabs({
+                active: 0,
+                activate: function(event, ui) {
+                    if (ui.newPanel.attr("id") === "mapPanel" && currentMemory) {
+                        requestAnimationFrame(() => setupMap(currentMemory));
+                    }
+                }
+            });
+
+            detailTabsReady = true;
+        }
+
+        // Google Mapsの読み込みが終わった時に呼ばれる
+        function initMap() {
+            mapsApiReady = true;
+
+            if (currentMemory && detailTabsReady && $("#detailTabs").tabs("option", "active") === 1) {
+                setupMap(currentMemory);
+            }
+        }
+
+        function showMapError() {
+            mapFallback.classList.remove("hidden");
+            mapFallback.querySelector("p").textContent = "地図を読み込めませんでした。APIキーの設定を確認してください。";
+        }
+
+        // 地図を作る
+        function setupMap(selectedMemory) {
+            if (!mapsApiReady || !window.google || !google.maps) {
+                mapFallback.classList.remove("hidden");
+                mapFallback.querySelector("p").textContent = "地図を読み込んでいます。";
+                return;
+            }
+
+            mapFallback.classList.add("hidden");
+
+            if (!googleMap) {
+                googleMap = new google.maps.Map(mapElement, {
+                    center: { lat: selectedMemory.lat, lng: selectedMemory.lng },
+                    zoom: 5,
+                    fullscreenControl: false,
+                    mapTypeControl: false,
+                    streetViewControl: false
+                });
+
+                infoWindow = new google.maps.InfoWindow();
+                createMarkers();
+                focusMemoryOnMap(selectedMemory);
+                return;
+            }
+
+            google.maps.event.trigger(googleMap, "resize");
+            focusMemoryOnMap(selectedMemory);
+        }
+
+        // 5つの場所にマーカーを置く
+        function createMarkers() {
+            mapBounds = new google.maps.LatLngBounds();
+
+            memories.forEach((memory) => {
+                const marker = new google.maps.Marker({
+                    position: { lat: memory.lat, lng: memory.lng },
+                    map: googleMap,
+                    title: memory.title,
+                    label: {
+                        text: String(memory.listNumber),
+                        color: "#ffffff",
+                        fontWeight: "700"
+                    },
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        fillColor: memory.color,
+                        fillOpacity: 1,
+                        strokeColor: "#ffffff",
+                        strokeWeight: 3,
+                        scale: 14
+                    }
+                });
+
+                marker.addListener("click", function() {
+                    selectMemory(memory.id, false);
+                    openInfoWindow(memory, marker);
+                });
+
+                markerStore.set(memory.id, marker);
+                mapBounds.extend(marker.getPosition());
+            });
+        }
+
+        // マーカーの写真と説明を表示する
+        function openInfoWindow(memory, marker) {
+            const number = String(memory.listNumber).padStart(2, "0");
+
+            infoWindow.setContent(`
+                <div class="w-[250px] pr-1 font-sans text-ink">
+                    <img class="mb-2 h-24 w-full rounded-md object-cover" src="${memory.photo}" alt="${memory.alt}">
+                    <p class="mb-1 text-[0.65rem] font-extrabold tracking-[0.14em] text-teal">MEMORY ${number} / ${memory.date}</p>
+                    <h3 class="mb-1 text-[0.95rem] font-extrabold leading-snug">${memory.title}</h3>
+                    <p class="mb-1 text-[0.68rem] font-bold leading-relaxed text-muted">${memory.placeName}</p>
+                    <p class="m-0 line-clamp-3 text-[0.72rem] leading-[1.6] text-[#495365]">${memory.memory}</p>
+                </div>
+            `);
+
+            infoWindow.open(googleMap, marker);
+        }
+
+        function focusMemoryOnMap(memory) {
+            googleMap.panTo({ lat: memory.lat, lng: memory.lng });
+            googleMap.setZoom(13);
+
+            markerStore.forEach((marker, id) => {
+                marker.setOpacity(id === memory.id ? 1 : 0.65);
+                marker.setZIndex(id === memory.id ? 10 : 1);
+            });
+        }
+
+        function showAllMemories() {
+            if (!googleMap || !mapBounds) return;
+
+            infoWindow.close();
+            markerStore.forEach((marker) => marker.setOpacity(1));
+            googleMap.fitBounds(mapBounds, 55);
+        }
+
+        initializeDetailTabs();
+        renderPhotos();
+        showAllButton.addEventListener("click", showAllMemories);
+        window.initMap = initMap;
+        window.showMapError = showMapError;
+    </script>
+    <script async src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCQDT3gErAXFU13Wcfk4bT9Lhozl2w85VQ&callback=initMap&loading=async" onerror="showMapError()"></script>
+</body>
+</html>
